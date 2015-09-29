@@ -12,3 +12,6 @@ features = ["socket"]
 gtk = "0.0.4"
 glib = "^0"
 
+[dependencies.mysql_connector]
+git = "https://github.com/insanebits/rust-mysql-connector.git"
+mysql_connector = "*"

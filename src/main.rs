@@ -10,7 +10,7 @@ extern crate gtk;
 // client
 extern crate mysql;
 
-extern crate mysql_client;
+extern crate mysql_connector;
 
 use std::default::Default;
 use mysql::conn::MyOpts;
@@ -19,13 +19,9 @@ use mysql::value::from_row;
 use mysql::error::MyResult;
 use mysql::conn::QueryResult;
 
-mod client;
-
 // import client stuff
-use client::DbServer;
-use client::Database;
-
-
+use mysql_connector::DbServer;
+use mysql_connector::Database;
 
 use gtk::traits::*;
 use gtk::signal::Inhibit;
@@ -82,10 +78,12 @@ fn main() {
     let left_model = left_store.get_model().unwrap();
 
     left_tree.set_model(&left_model);
-    left_tree.set_headers_visible(false);
+    left_tree.set_headers_visible(true);
     append_text_column(&left_tree);
 
     // print out when a row is selected
+    
+    let mysql_server: DbServer = get_server_metadata();
 
     let left_selection = left_tree.get_selection().unwrap();
     let left_model1 = left_model.clone();
@@ -94,15 +92,21 @@ fn main() {
         tree_selection.get_selected(&left_model1, &mut iter);
         if let Some(path) = left_model1.get_path(&iter) {
             println!("selected row {}", path.to_string().unwrap());
+            let index = path.to_string().unwrap().parse::<usize>().unwrap();
+            
+            //let selected_database: Database = mysql_server.databases[index];
+            
+            println!("selected text {}", mysql_server.databases[index].name); 
         }
     });
     
-    let mysql_server: DbServer = get_server_metadata();
 
-    for _ in 0..10 {
+
+    for database in mysql_server.databases {
+    
         let mut iter = gtk::TreeIter::new();
         left_store.append(&mut iter);
-        left_store.set_string(&iter, 0, "I'm in a list");
+        left_store.set_string(&iter, 0, &database.name);
 
         // select this row as a test
 
