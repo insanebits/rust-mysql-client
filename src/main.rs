@@ -15,16 +15,12 @@ extern crate mysql_connector;
 use std::default::Default;
 use mysql::conn::MyOpts;
 use mysql::conn::pool::MyPool;
-use mysql::value::from_row;
-use mysql::error::MyResult;
 use mysql::conn::QueryResult;
-
 // import client stuff
 use mysql_connector::DbServer;
-use mysql_connector::Database;
+
 use std::io::prelude::*;
-use std::io::BufReader;
-use std::fs::File;
+use std::cell::RefCell;
 
 use gtk::traits::*;
 use gtk::signal::Inhibit;
@@ -44,7 +40,7 @@ fn get_server_metadata() -> DbServer {
  
   let opts = MyOpts {
     user: Some("root".to_string()),
-    pass: Some("changeit".to_string()),
+    pass: Some("".to_string()),
     ..Default::default()
   };
    
@@ -60,6 +56,76 @@ fn get_server_metadata() -> DbServer {
   server
 }
 
+/**
+ * Configures result table and adds to parent container
+ * Returns reference to the model for dynamic modification
+ *
+ */
+fn setup_result_table<'a>(container: &gtk::Box, table: &gtk::TreeView, store: &gtk::ListStore ) -> () {
+    let table_model = store.get_model().unwrap();
+
+    table.set_model(&table_model);
+    table.set_headers_visible(false);
+    
+    container.add(table);
+}
+
+fn display_query_results<'a>(response: QueryResult, table_store: &'a gtk::ListStore, columns_cell: &'a RefCell<Vec<gtk::TreeViewColumn>>, table: &'a gtk::TreeView) -> () {
+
+    let mut columns = columns_cell.borrow_mut();
+    
+    // empty data
+    table_store.clear();
+
+    // remove columns from the view
+    for column in columns.iter() {
+        table.remove_column(column);
+    }
+
+    // empty vector
+    columns.clear();
+
+    let mut col_no = 0i32;
+
+    for result_col in response.columns_ref()
+    {
+	    let virtual_col = std::str::from_utf8(&result_col.name).unwrap();
+	    
+	    println!("Col: {}", virtual_col);
+	    println!("Col no: {}", col_no);
+
+        let column = gtk::TreeViewColumn::new().unwrap();
+        let cell = gtk::CellRendererText::new().unwrap();
+        column.pack_start(&cell, true);
+        column.add_attribute(&cell, "text", col_no);
+        column.set_title(&virtual_col);
+        
+        columns.push(column);
+       
+        // column is no longer valid since we moved it into a vector
+        let column = columns.last().unwrap();
+
+        table.append_column(&column);
+
+	    col_no = col_no + 1;
+    }
+
+    col_no = 0i32;
+
+    
+    for row in response
+    {
+	    for col in row.unwrap() {
+		    let mut iter = gtk::TreeIter::new();
+		    table_store.append(&mut iter);
+		    table_store.set_string(&iter, col_no, &col.into_str());
+		    col_no = col_no + 1;
+	    }
+    }
+    
+}
+
+
 fn main() {
     gtk::init().unwrap_or_else(|_| panic!("Failed to initialize GTK."));
 
@@ -68,7 +134,7 @@ fn main() {
     window.set_title("First GTK+ Program");
     window.set_border_width(10);
     window.set_window_position(gtk::WindowPosition::Center);
-    window.set_default_size(350, 70);
+    window.set_default_size(640, 480);
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
@@ -93,9 +159,11 @@ fn main() {
     	database_index.push(database.name.clone());
     }
     
-    let database_object_map:Vec<Vec<String>> = mysql_server.databases.map(|db|{
-    	db.tables
-    }).collect();
+    let mut database_object_map:Vec<Vec<String>> = Vec::new();;
+    
+    for database in &mysql_server.databases {
+    	database_object_map.push(database.tables.clone());
+    } 
 
     let left_selection = left_tree.get_selection().unwrap();
     let left_model1 = left_model.clone();
@@ -103,30 +171,17 @@ fn main() {
         let mut iter = gtk::TreeIter::new();
         tree_selection.get_selected(&left_model1, &mut iter);
         if let Some(path) = left_model1.get_path(&iter) {
-            println!("selected row {}", path.to_string().unwrap());
             
             let selection = path.to_string().unwrap();
             let selection_parts = selection.split(":").collect::<Vec<&str>>();
             
-            
-            
             if selection_parts.len() == 3 {
-            	println!("Selected database");
-           	
-          	
             	let database_key = selection_parts.first().unwrap().parse::<usize>().unwrap();
             	let table_key = selection_parts.last().unwrap().parse::<usize>().unwrap();
             	
             	println!("Database {}", database_index[database_key]);
             	println!("Table {}", &database_object_map[database_key][table_key]);
             }
-           
-            //let index = path.to_string().unwrap().parse::<usize>().unwrap();
-            
-            
-            //let ref selected_database: String = database_index[index];
-            
-            //println!("selected text {}", selected_database); 
         }
     });
 
@@ -158,20 +213,10 @@ fn main() {
     
     // text view
     
-    
-    let toolbar = gtk::Toolbar::new().unwrap();
-
-    let open_icon = gtk::Image::new_from_icon_name("document-open",
-                                                   gtk::IconSize::SmallToolbar as i32).unwrap();
-     let open_button = gtk::ToolButton::new::<gtk::Image>(Some(&open_icon), Some("Open")).unwrap();
-    open_button.set_is_important(true);
-
     let editor = gtk::TextView::new().unwrap();
     
     let editor_scrolled_window = gtk::ScrolledWindow::new(
     	None, None
-    	//gtk::Adjustment::new(0.0f64, 0.0f64, 100.0f64, 1.0f64, 10.0f64, 0.0f64), 
-    	//gtk::Adjustment::new(0.0f64, 0.0f64, 100.0f64, 1.0f64, 10.0f64, 0.0f64)
 	).unwrap();
 	
     editor_scrolled_window.set_hexpand(true);
@@ -189,9 +234,26 @@ fn main() {
     
     header.pack_end(&header_execute_button);
     
+    // footer
+    
+    let footer = gtk::Box::new(gtk::Orientation::Vertical, 10).unwrap();
+    
+    let table = gtk::TreeView::new().unwrap();
+    let table_store = gtk::ListStore::new(&[glib::Type::String]).unwrap();
+    
+    // list of current columns, since there is no get_columns method
+    // AS of gtk 0.0.4
+    let table_cols:Vec<gtk::TreeViewColumn> = Vec::new();
+    let table_cols_cell = RefCell::new(table_cols);
+    
+    setup_result_table(&footer, &table, &table_store);
+    
+    let scrollable_footer = gtk::ScrolledWindow::new(None, None).unwrap();
+    scrollable_footer.set_hexpand(true);
+    scrollable_footer.set_vexpand(true);
+    scrollable_footer.add(&footer);
+    
     header_execute_button.connect_clicked(move |_| {
-    	println!("Clicked execute");
-    	
     	let text_start = editor.get_buffer().unwrap().get_start_iter().unwrap();
     	let text_end = editor.get_buffer().unwrap().get_start_iter().unwrap();
     	
@@ -199,38 +261,17 @@ fn main() {
     	text_end.forward_to_end();
     	
     	let query = text_start.get_text(&text_end).unwrap();
-    	
-    	println!("Query: {}", query); 	
-    	
-    	
         let response = mysql_server.pool.prep_exec(query, ());
     	
-    	match response {
-    		Ok(result) => {
-    			println!("Ok");
-    			
-    			/* 
-    			currently not possible since columns are private 
-    			for result_col in result.columns
-    			{
-    				let virtual_col = std::str::from_utf8(&result_col.name).unwrap();
-    				println!("Col: {}", virtual_col);
-    			}
-    			*/
-    			
-    			for row in result
-    			{
-    				for col in row.unwrap() {
-    						println!("Res: {}", col.into_str());
-    				}
-    			}
-    		}
-    		Err(e) => {
-    			println!("Error: {}", e);
-    		}
-    	}
+        match response {
+	        Ok(result) => {
+		        display_query_results(result, &table_store, &table_cols_cell, &table);
+	        }
+	        Err(e) => {
+		        println!("Error: {}", e);
+	        }
+        }
     });
-    
     
     let main_box = gtk::Box::new(gtk::Orientation::Vertical, 0).unwrap();
     let panels = gtk::Grid::new().unwrap();
@@ -239,9 +280,7 @@ fn main() {
     split_pane.set_size_request(-1, -1);
     split_pane.add(&left_tree);
     
-    let split_pane_scrolled_window = gtk::ScrolledWindow::new(
-    	None, None
-	).unwrap();
+    let split_pane_scrolled_window = gtk::ScrolledWindow::new(None, None).unwrap();
 	
     split_pane_scrolled_window.set_hexpand(true);
     split_pane_scrolled_window.set_vexpand(true);
@@ -252,6 +291,7 @@ fn main() {
     
     main_box.add(&header);
     main_box.add(&panels);
+    main_box.add(&scrollable_footer);
     
     window.add(&main_box);
 

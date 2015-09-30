@@ -9,12 +9,12 @@ default-features = false
 features = ["socket"]
 
 # temp gtk linked from patched repository
-[dependencies.gtk]
-gtk = "0.0.4"
-git = "https://github.com/pd40/gtk.git"
+#[dependencies.gtk]
+#gtk = "0.0.4"
+
 
 [dependencies]
-#gtk = "0.0.4"
+gtk = "0.0.4"
 glib = { git = "https://github.com/gtk-rs/glib" }
 
 [dependencies.mysql_connector]
