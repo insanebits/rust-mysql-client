@@ -1,25 +1,20 @@
 ///
 /// Database browser sidebar 
 ///
-use gtk::{
-    Box,
-    ScrolledWindow,
-    TreeView
-};
 
-use gtk::traits::*;
-
-use mysql_connector::DbServer;
 use gtk;
+use gtk::traits::*;
 use glib;
+use connector::Server;
+
 
 
 pub struct DatabaseBrowser{
-    pub widget: ScrolledWindow
+    pub widget: gtk::ScrolledWindow
 }
 
 impl DatabaseBrowser {
-    pub fn new(mysql_server: &DbServer) -> DatabaseBrowser
+    pub fn new(mysql_server: &Server) -> DatabaseBrowser
     {
         let left_tree = gtk::TreeView::new().unwrap();
         let column_types = [glib::Type::String, glib::Type::String];

@@ -3,7 +3,6 @@
 ///
 
 use gtk::{
-    Box,
     ScrolledWindow,
     TextView,
 };
