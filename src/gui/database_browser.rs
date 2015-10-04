@@ -17,6 +17,9 @@ impl DatabaseBrowser {
     pub fn new(mysql_server: &Server) -> DatabaseBrowser
     {
         let left_tree = gtk::TreeView::new().unwrap();
+        left_tree.set_hexpand(true);
+        
+        
         let column_types = [glib::Type::String, glib::Type::String];
         let left_store = gtk::TreeStore::new(&column_types).unwrap();
         let left_model = left_store.get_model().unwrap();
@@ -92,10 +95,13 @@ impl DatabaseBrowser {
         }
         
         let split_pane = gtk::Box::new(gtk::Orientation::Horizontal, 10).unwrap();
-        split_pane.set_size_request(-1, -1);
+        
+        split_pane.set_hexpand(true);
         split_pane.add(&left_tree);
         
         let split_pane_scrolled_window = gtk::ScrolledWindow::new(None, None).unwrap();
+        // at least 150px width
+        split_pane_scrolled_window.set_size_request(150, -1);
 	
         split_pane_scrolled_window.set_hexpand(true);
         split_pane_scrolled_window.set_vexpand(true);

@@ -9,9 +9,11 @@ use connector;
 use config;
 use std::path::Path;
 use std;
+use gui::ComponentStoreTrait;
 
-pub struct MainWindow {
+pub struct MainWindow<'a> {
 	window: gtk::Window,
+	components: gui::ComponentStore,
 	header: gtk::Box,
 	body: gtk::Box,
 	footer: gtk::Box
@@ -21,8 +23,8 @@ impl MainWindow {
 	pub fn new() -> MainWindow {
 		let window = gtk::Window::new(gtk::WindowType::Toplevel).unwrap();
 
-		window.set_title("First GTK+ Program");
-		window.set_border_width(10);
+		window.set_title("MySQL Browser");
+		window.set_border_width(0);
 		window.set_window_position(gtk::WindowPosition::Center);
 		window.set_default_size(640, 480);
 
@@ -33,6 +35,7 @@ impl MainWindow {
 		
 		MainWindow {
 			window: window,
+			components: gui::ComponentStore::new(),
 			header: gtk::Box::new(gtk::Orientation::Vertical, 10).unwrap(),
 			body: gtk::Box::new(gtk::Orientation::Vertical, 10).unwrap(),
 			footer: gtk::Box::new(gtk::Orientation::Vertical, 10).unwrap(),
@@ -49,13 +52,14 @@ impl MainWindow {
 		self.window.add(&main_container);
 	}
 	
-	fn setup_header(&self, container: &gtk::Box) -> () {
-		container.add(&gui::HeaderBar::new().widget);
+	fn setup_header(&mut self, container: &gtk::Box) -> () {	
+		let name = "header".to_string();
+		self.components.add_component(name, &Box::new(gui::HeaderBar::new().widget));
+		// dereference box and borrow value
+		container.add(&*self.components.get_component(&name).unwrap());
 	}
 	
 	fn setup_body(&self, container: &gtk::Box) -> () {
-		let panels = gtk::Box::new(gtk::Orientation::Horizontal, 0).unwrap();
-    	
     	let config_result = config::reader::from_file(Path::new("database.conf"));
     	
     	match config_result {
@@ -64,10 +68,12 @@ impl MainWindow {
     	}
     	
     	let mysql_server = connector::Server::new(config_result.unwrap());
-    
+    	let panels = gtk::Paned::new(gtk::Orientation::Horizontal).unwrap();
+    	
 		//TODO maybe create container wrapper to get rid of .widget calls every time
-		panels.add(&gui::DatabaseBrowser::new(&mysql_server).widget);
-		panels.add(&gui::Editor::new().widget);
+		
+		panels.pack1(&gui::DatabaseBrowser::new(&mysql_server).widget, true, false);
+		panels.pack2(&gui::Editor::new().widget, true, false);
 		
 		container.add(&panels);
 	}

@@ -24,6 +24,9 @@ impl Editor {
         editor_scrolled_window.set_vexpand(true);
         editor_scrolled_window.add(&editor);
         
+        // at least 300 width
+        editor_scrolled_window.set_size_request(300, -1);
+        
         Editor {
             widget: editor_scrolled_window,
         }
